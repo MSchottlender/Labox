@@ -6,7 +6,6 @@ extern angulo
 ejes .byte 5
 
 .cseg
-
 SETUP: ;Esta parte (hasta BEGIN_ADC se puede poner en el main y solo hacer una vez)
 	ldi r16, 0	;Pongo en read los analog
 	out DDRF, r16 ;Aca estan los analog 0, 1 y 2
@@ -23,7 +22,7 @@ KEEP_POLING:
 	sbi	ADCSRA,ADIF
 	tst r17
 	brne Z_AXIS
-X_AXIS:
+Y_AXIS:
 	in r16,ADCL
 	sts 0x300,r16
 	in r16,ADCH
@@ -37,9 +36,5 @@ Z_AXIS:
 	sts 0x302,r16
 	in r16,ADCH
 	sts 0x303,r16
-	call angulo
+	rcall angulo
 	ret ;En 0x304 queda guardado el angulo obtenido
-
-
-
-
