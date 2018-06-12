@@ -33,7 +33,7 @@ void angulo(void)
 	y=(200000*(yb-YMIN)/(YMAX-YMIN)-100000); /*mapeo multiplicado por 100000 para dar mas resolucion y presicion*/
 	z=(200000*(zb-ZMIN)/(ZMAX-ZMIN)-100000);
 	
-	ang=atan(z/y)*180/pi+90; /*Va de 0 a 180 grados*/
+	ang=-atan(z/y)*180/pi+90; /*Va de 0 a 180 grados*/
 	
 	*angp=ang;
 	
