@@ -4,27 +4,34 @@
 ; Created: 13/6/2018 17:52:31
 ; Author : camis
 ;
-.org INT_VECTORS_SIZE
-.org 0x000
-rjmp main
 
-.org 0x002
-rjmp interrupt
+
+.include "M2560def.inc" 
 
 .dseg
 .def AUX = r16
 .def AUX1 = r17
+
 .cseg
+
+rjmp main
+.org INT0addr
+jmp interrupt
+.org INT_VECTORS_SIZE
+
 main:
+
 sei		;seteo el flag I del SREG para habilitar las interrupciones
 ldi AUX, 0x01
 out EIMSK, AUX	;habilito la interrupcion INT0
 ldi AUX, 0x02
-sts EICRA, AUX	;configuro que la interrupcion se habilite cuando el nivel de la señal es bajo
+sts EICRA, AUX	;configuro que la interrupcion se habilite en flanco ascendente
 ldi AUX, 0x00
 out EIFR, AUX	;limpio las banderas que indican que una interrupcion se lleva a cabo
-cbi DDRC, 6		;coloco a PC6 como salida
+
+cbi DDRC, 6		;coloco a PC6 como salida (digital pin 31)
 rjmp main
+
 
 interrupt:
 
@@ -43,9 +50,8 @@ L1: dec  r20
     brne L1
     dec  r18
     brne L1
-
+	
 cbi PORTC, 6	;apago el LED
-
 
 pop AUX
 pop AUX1
