@@ -5,18 +5,17 @@
 ;.dseg
 .section .data
 .org 0x300
-ejes: .byte 5
+ejes: .byte 10
 
 ;.cseg
 .section .text
 main:
 call USART_Init
 SETUP: ;Esta parte (hasta BEGIN_ADC se puede poner en el main y solo hacer una vez)
-	;ldi r16, 0x00	;Pongo en read los analog
-	;out DDRB, r16 ;Aca estan los analog 0, 1 y 2
 	ldi r16, 0x87 
 	sts ADCSRA, r16 ;Enciendo el ADC y uso una frecuencia de actualizacion de Ck/128=125KHz
 BEGIN_ADC:
+	clr r17
 	ldi r16, 0xC0 ;Esto implica que la AREF es interna (2,56 V), que se usan los bits 0-9 del ADC y (por el momento)
 	sts ADMUX, r16;que se usa el bit 0. RECOMENDADO USAR CAPACITOR DE 100nF PARA MEJORAR PRECISION
 READ_ADC:
@@ -49,7 +48,8 @@ Z_AXIS:
 	rcall angulo
 	lds r16, 0x304
 	call USART_Transmit
-	rjmp READ_ADC
+	call DELAY_20MS
+	rjmp BEGIN_ADC
 	ret ;En 0x304 queda guardado el angulo obtenido
 
 
@@ -86,3 +86,20 @@ check_transmit_buffer_empty:	; Espero a que el buffer de transmision se vacie
 
 	pop r17		; Recupero el valor anterior de r17
 	RET
+
+
+	;DELAY 20ms
+
+DELAY_20MS:
+	ldi r20,150
+	ldi r21,160
+	ldi r22,2
+	Loop:
+		dec r20
+		brne Loop
+		dec r21
+		brne Loop
+		dec r22
+		brne Loop
+	nop
+	ret
