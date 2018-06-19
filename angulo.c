@@ -1,3 +1,9 @@
+/*
+ * CFile1.c
+ *
+ * Created: 8/6/2018 19:21:57
+ *  Author: marti
+ */ 
 #include <avr/io.h>
 #include <math.h>
 
@@ -9,11 +15,6 @@
 
 #define pi 3.1415
 
-#define YMAX 999
-#define YMIN 372
-#define ZMAX 863
-#define ZMIN 234 /*Esto se pone despues de calibrar el acelerometro (con arduino)*/
-
 unsigned int volatile const * yal = (unsigned int *) YLOW;
 unsigned int volatile const * yah = (unsigned int *) YHIGH;
 unsigned int volatile const * zal = (unsigned int *) ZLOW;
@@ -22,16 +23,45 @@ unsigned int volatile * const angp = (unsigned int *) ANGPOS;
 
 void angulo(void)
 {
+	int YMAX,YMIN,ZMAX,ZMIN;
+	int acel=2;
+	if (acel==1)
+	{
+		YMAX=996;
+		YMIN=336;
+		ZMAX=872;
+		ZMIN=235;
+	}
+	if(acel==2)
+	{
+		YMAX=986;
+		YMIN=342;
+		ZMAX=866;
+		ZMIN=213;
+	}
+	if(acel==3)
+	{
+		YMAX=997;
+		YMIN=347;
+		ZMAX=866;
+		ZMIN=221;
+	}
+	if(acel==4)
+	{
+		YMAX=999;
+		YMIN=372;
+		ZMAX=863;
+		ZMIN=234;
+	}
 	float y,z;
 	int yb,zb,yl,zl,yh,zh;
 	unsigned char ang;
-
-	yh=*yah; 
+	
+	yh=*yah;
 	yh=((*yah)<<8);
 	yl=(char)(*yal);
 	yb=yh;
 	yb=yb+yl;
-	
 	
 	zh=*zah;
 	zh=((*zah)<<8);
@@ -40,25 +70,41 @@ void angulo(void)
 	zb=zb+zl;
 	
 	/* Quiero yb=844 zb=711 para obtener 45 grados*/
-
-
 	y=(200000*(yb-YMIN)/(YMAX-YMIN)-100000); /*mapeo multiplicado por 100000 para dar mas resolucion y presicion*/
 	z=(200000*(zb-ZMIN)/(ZMAX-ZMIN)-100000);
 	
-	ang=fabs(atan(z/y))*180/pi;
-	if(y<0 && z<0)
-	{
-		ang=180-(fabs(atan(z/y))*180/pi);
+	if(acel!=2)
+	{	
+		ang=fabs(atan(z/y))*180/pi;
+		if(y<0 && z<0)
+		{
+			ang=180-(fabs(atan(z/y))*180/pi);
+		}
+		if(y<0 && z>0)
+		{
+			ang=180;
+		}
+		if(y>0 && z>0)
+		{
+			ang=0;
+		}	
 	}
-	if(y<0 && z>0)
+	if(acel==2)
 	{
-		ang=180;	
+		ang=acosf(y)*180/pi;
+		/*if(z>0)
+		{
+			ang=(acosf(x))*180/pi;
+		}
+		if(z<0 && x<0)
+		{
+			ang=180;
+		}
+		if(z<0 && x>0)
+		{
+			ang=0;
+		}*/
 	}
-	if(y>0 && z>0)
-	{
-		ang=0;
-	}
- /*Va de 0 a 180 grados*/
+	/*Va de 0 a 180 grados*/
 	*angp=(char)ang;
-	
 }
