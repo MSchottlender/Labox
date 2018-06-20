@@ -1,25 +1,18 @@
-
-/*
- * Assembler1.s
- *
- * Created: 8/6/2018 19:21:25
- *  Author: marti
- */ 
-
- /***** QUEDA: MODIFICAR LOS IN/OUT POR SFR (PARA C) Y DESMACRIZAR LOS MACROS ****/
-
 #include <avr/io.h>
 #include <avr/iom2560.h>
-#include "macros.s"
+;#include <avr/interrupt.h>
+
 .global main
 .EXTERN angulo
 
  ;Aca irian los .equ (no se si son defines)
 #define baudrate  103
 #define	B_S3003 1000
-#define	A_s3003 17
+#define	A_S3003 17
 #define	B_SG90 1050
 #define	A_SG90 11
+#define INT_VECTORS_SIZE 114
+#define INT0addr 0x0002
 
 
 ;.dseg
@@ -32,14 +25,65 @@ ejes: .byte 10
 
 ;.cseg
 .section .text
+
+/*********** INTERRUPCION ************/
+
+int_setup:
+.org 0x000
+rjmp int_main
+.org INT0addr
+rjmp interrupt
 .org INT_VECTORS_SIZE
-	LDI r16,HIGH(RAMEND)	;Inicializo Stack Pointer
-	OUT SPh, r16
-	LDI r16, LOW(RAMEND)
-	OUT SPl, r16
-call USART_Init
+
+
+int_main:
+
+sei		;seteo el flag I del SREG para habilitar las interrupciones
+ldi r16, 0x01
+out EIMSK, r16	;habilito la interrupcion INT0
+ldi AUX, 0x02
+sts EICRA, r16	;configuro que la interrupcion se habilite en flanco ascendente
+ldi AUX, 0x00
+out EIFR, r16	;limpio las banderas que indican que una interrupcion se lleva a cabo
+
+cbi _SFR_IO_ADDR(DDRC), 6		;coloco a PC6 como salida (digital pin 31)
+ret
+
+
+interrupt:
+
+in r17, _SFR_IO_ADDR(SREG)
+push r17
+push r16
+
+sbi _SFR_IO_ADDR(PORTC), 6	;prendo el LED
+
+    ldi  r18, 41	;Delay de medio segundo
+    ldi  r19, 150
+    ldi  r20, 128
+L1: dec  r20
+    brne L1
+    dec  r19
+    brne L1
+    dec  r18
+    brne L1
+	
+cbi _SFR_IO_ADDR(PORTC), 6	;apago el LED
+
+pop r16
+pop r17
+out _SFR_IO_ADDR(SREG), r17
+
+reti
+
+/*********************** FIN INTERRUPCION ***********************/
+
+	LDI r16,hi8(RAMEND)	;Inicializo Stack Pointer
+	sts SPH, r16
+	LDI r16, lo8(RAMEND)
+	sts SPL, r16
+call USART_Init ;Inicializo demas funciones
 call SETUP_ADC
-call int_setup
 call configure_pwm
 
 main:
@@ -259,56 +303,6 @@ DELAY_20MS:
 	clr r18
 	ret
 
-/*********** INTERRUPCION ************/
-
-int_setup:
-
-rjmp int_main
-.org INT0addr
-jmp interrupt
-.org INT_VECTORS_SIZE
-
-
-int_main:
-
-sei		;seteo el flag I del SREG para habilitar las interrupciones
-ldi r16, 0x01
-out EIMSK, r16	;habilito la interrupcion INT0
-ldi AUX, 0x02
-sts EICRA, r16	;configuro que la interrupcion se habilite en flanco ascendente
-ldi AUX, 0x00
-out EIFR, r16	;limpio las banderas que indican que una interrupcion se lleva a cabo
-
-cbi DDRC, 6		;coloco a PC6 como salida (digital pin 31)
-ret
-
-
-interrupt:
-
-in r17, SREG
-push r17
-push r16
-
-sbi PORTC, 6	;prendo el LED
-
-    ldi  r18, 41	;Delay de medio segundo
-    ldi  r19, 150
-    ldi  r20, 128
-L1: dec  r20
-    brne L1
-    dec  r19
-    brne L1
-    dec  r18
-    brne L1
-	
-cbi PORTC, 6	;apago el LED
-
-pop r16
-pop r17
-out SREG, r17
-
-reti
-
 /**************************** SERVO *************************************/
 	
 main_pwm:
@@ -355,79 +349,79 @@ configure_pwm: ; Primero seteo el T/C para que se resetee cada 20ms y que hasta 
 	; Fast PWM (WGM[3:0] = 15) y en modo non-inverting para el registro OC1B, lo limpia cuando matchea y lo setea de vuelta en BOTTOM
 	ldi r16, 0xFF
 
-	sbi DDRB,6   ; Pongo como salida el pin OC1B por donde va a salir la señal del PWM pin 12
-	sts DDRH,r16 ; Pongo como salida el pin OC4B y OC4C por donde va a salir la señal del PWM pin 7 y 8
-	sts DDRL,r16 ; Pongo como salida el pin OC5B y OC5C por donde va a salir la señal del PWM pin 45 y 44
+	sbi _SFR_IO_ADDR(DDRB),6   ; Pongo como salida el pin OC1B por donde va a salir la señal del PWM pin 12
+	sts _SFR_IO_ADDR(DDRH),r16 ; Pongo como salida el pin OC4B y OC4C por donde va a salir la señal del PWM pin 7 y 8
+	sts _SFR_IO_ADDR(DDRL),r16 ; Pongo como salida el pin OC5B y OC5C por donde va a salir la señal del PWM pin 45 y 44
 
 
 
 	;;;;;;;;;;;;;;;;;;CONFIG SERVO 1: pin 12, OC1B;;;;;;;;;;;;;;
-	input AUX,TCCR1A
+	lds AUX,TCCR1A
 	ori AUX,(1<<COM1B1)|(1<<WGM11)|(1<<WGM10) ; Set en modo non-inverting, WGM11 y WGM10 en 1 para setear el modo Fast PWM
-	output TCCR1A,AUX
+	sts TCCR1A,AUX
 
-	input AUX,TCCR1B
+	lds AUX,TCCR1B
 	ori AUX,(1<<WGM13)|(1<<WGM12) ; Set en modo Fast PWM, el contador se resetea cuando llega a OCR1A
 	ori AUX, (1<<CS11) ; Set prescaler en 8
-	output TCCR1B,AUX
+	sts TCCR1B,AUX
 
 	; Poniendo el prescaler en 8, y con una frecuencia de 16MHz,contar hasta 40000 tarda 20ms
 	; 40000/(16Mega/8) = 0.02
-	ldi PWMH, HIGH (40000)
-	ldi PWML, LOW (40000) 
-	output OCR1AH,PWMH
-	output OCR1AL,PWML
+	ldi PWMH, hi8(40000)
+	ldi PWML, lo8(40000) 
+	sts OCR1AH,PWMH
+	sts OCR1AL,PWML
 	;;;;;;;;;;;;;;;;;;CONFIG SERVO 2: pin 7, OC4B;;;;;;;;;;;;;;
 	
-	input AUX,TCCR4A
+	lds AUX,TCCR4A
 	ori AUX,(1<<COM4B1)|(1<<WGM41)|(1<<WGM40) ; Set en modo non-inverting, WGM41 y WGM40 en 1 para setear el modo Fast PWM
-	output TCCR4A,AUX
+	sts TCCR4A,AUX
 
-	input AUX,TCCR4B
+	lds AUX,TCCR4B
 	ori AUX,(1<<WGM43)|(1<<WGM42) ; Set en modo Fast PWM, el contador se resetea cuando llega a OCR4A
 	ori AUX, (1<<CS41) ; Set prescaler en 8
-	output TCCR4B,AUX
+	sts TCCR4B,AUX
 
 	; Poniendo el prescaler en 8, y con una frecuencia de 16MHz,contar hasta 40000 tarda 20ms
 	; 40000/(16Mega/8) = 0.02
-	ldi PWMH, HIGH (40000)
-	ldi PWML, LOW (40000) 
-	output OCR4AH,PWMH
-	output OCR4AL,PWML
+	ldi PWMH, hi8(40000)
+	ldi PWML, lo8(40000) 
+	sts OCR4AH,PWMH
+	sts OCR4AL,PWML
 
 	;;;;;;;;;;;;;;;;;;CONFIG SERVO 3: pin 8, OC4C;;;;;;;;;;;;;;
 	
-	input AUX,TCCR4A
+	lds AUX,TCCR4A
 	ori AUX,(1<<COM4C1)|(1<<WGM41)|(1<<WGM40) ; Set en modo non-inverting, WGM41 y WGM40 en 1 para setear el modo Fast PWM
-	output TCCR4A,AUX
+	sts TCCR4A,AUX
 
 	;;;;;;;;;;;;;;;;;;CONFIG SERVO 4: pin 45, OC5B;;;;;;;;;;;;;;
 	
-	input AUX,TCCR5A
+	lds AUX,TCCR5A
 	ori AUX,(1<<COM5B1)|(1<<WGM51)|(1<<WGM50) ; Set en modo non-inverting, WGM31 y WGM30 en 1 para setear el modo Fast PWM
-	output TCCR5A,AUX
+	sts TCCR5A,AUX
 
-	input AUX,TCCR5B
+	lds AUX,TCCR5B
 	ori AUX,(1<<WGM53)|(1<<WGM52) ; Set en modo Fast PWM, el contador se resetea cuando llega a OCR3A
 	ori AUX, (1<<CS51) ; Set prescaler en 8
-	output TCCR5B,AUX
+	sts TCCR5B,AUX
 
 	; Poniendo el prescaler en 8, y con una frecuencia de 16MHz,contar hasta 40000 tarda 20ms
 	; 40000/(16Mega/8) = 0.02
-	ldi PWMH, HIGH (40000)
-	ldi PWML, LOW (40000) 
-	output OCR5AH,PWMH
-	output OCR5AL,PWML
+	ldi PWMH, hi8 (40000)
+	ldi PWML, lo8 (40000) 
+	sts OCR5AH,PWMH
+	sts OCR5AL,PWML
 
 	;;;;;;;;;;;;;;;;;;CONFIG SERVO 5: pin 44, OC5C;;;;;;;;;;;;;;
-	input AUX,TCCR5A
+	lds AUX,TCCR5A
 	ori AUX,(1<<COM5C1)|(1<<WGM51)|(1<<WGM50) ; Set en modo non-inverting, WGM31 y WGM30 en 1 para setear el modo Fast PWM
-	output TCCR5A,AUX
+	sts TCCR5A,AUX
 
 
 	;;;;;Inicializo todos los servos abiertos;;;;;
-	ldi PWMH, HIGH(3000)
-	ldi PWML, LOW(3000) ; Inicio el ancho de pulso en 1ms
+	ldi PWMH, hi8(3000)
+	ldi PWML, lo8(3000) ; Inicio el ancho de pulso en 1ms
 	call set_pwm_uno	;A esta funcion se la llama cada vez que se quiera modificar el ancho de pulso
 	call set_pwm_dos
 	call set_pwm_tres
@@ -441,41 +435,41 @@ configure_pwm: ; Primero seteo el T/C para que se resetee cada 20ms y que hasta 
   
 set_pwm_uno: ; El registro OCR1B es el que determina el ancho de pulso. Con esta funcion actualizo ese registro con lo que hay en PWMH/L
 
-	output OCR1BH,PWMH
-	output OCR1BL,PWML
+	sts OCR1BH,PWMH
+	sts OCR1BL,PWML
 	ret
 
 set_pwm_dos: ; El registro OCR1B es el que determina el ancho de pulso. Con esta funcion actualizo ese registro con lo que hay en PWMH/L
 
-	output OCR4BH,PWMH
-	output OCR4BL,PWML
+	sts OCR4BH,PWMH
+	sts OCR4BL,PWML
 	ret
 
 
 set_pwm_tres: ; El registro OCR1B es el que determina el ancho de pulso. Con esta funcion actualizo ese registro con lo que hay en PWMH/L
 
 
-	output OCR4CH,PWMH
-	output OCR4CL,PWML
+	sts OCR4CH,PWMH
+	sts OCR4CL,PWML
 	ret
 	
 set_pwm_cuatro: ; El registro OCR1B es el que determina el ancho de pulso. Con esta funcion actualizo ese registro con lo que hay en PWMH/L
 
 
-	output OCR5BH,PWMH
-	output OCR5BL,PWML
+	sts OCR5BH,PWMH
+	sts OCR5BL,PWML
 	ret
 	
 set_pwm_cinco: ; El registro OCR1B es el que determina el ancho de pulso. Con esta funcion actualizo ese registro con lo que hay en PWMH/L
 
-	output OCR5CH,PWMH
-	output OCR5CL,PWML
+	sts OCR5CH,PWMH
+	sts OCR5CL,PWML
 	ret
 
 Transformar_angulo:
 
-	ldi r18, low(B_S3003)
-	ldi r19, high(B_S3003)
+	ldi r18, lo8(B_S3003)
+	ldi r19, hi8(B_S3003)
 	ldi r20, A_S3003	
 	mul r17, r20
 	add	r0, r18
@@ -486,8 +480,8 @@ Transformar_angulo:
 	
 Transformar_angulo_pulgar:
 	
-	ldi r18, low(B_SG90)
-	ldi r19, high(B_SG90)
+	ldi r18, lo8(B_SG90)
+	ldi r19, hi8(B_SG90)
 	ldi r20, A_SG90
 	mul r17, r20
 	add	r0, r18
